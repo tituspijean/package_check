@@ -80,7 +80,7 @@ echo -e "# Branche à utiliser pour le script d'install de cette distribution (s
 
 echo -e "\e[1m> Update et install lxc lxctl\e[0m" | tee -a "$LOG_BUILD_LXC"
 sudo apt-get update >> "$LOG_BUILD_LXC" 2>&1
-sudo apt-get install -y lxc lxctl >> "$LOG_BUILD_LXC" 2>&1
+sudo apt-get install -y lxc lxctl lsb-release >> "$LOG_BUILD_LXC" 2>&1
 
 echo -e "\e[1m> Install git, curl and lynx\e[0m" | tee -a "$LOG_BUILD_LXC"
 sudo apt-get install -y git curl lynx >> "$LOG_BUILD_LXC" 2>&1
@@ -113,6 +113,7 @@ iface $LXC_BRIDGE inet static
 EOF
 
 echo -e "\e[1m> Active le bridge réseau\e[0m" | tee -a "$LOG_BUILD_LXC"
+sudo ip addr flush dev $LXC_BRIDGE >> "$LOG_BUILD_LXC" 2>&1
 sudo ifup $LXC_BRIDGE --interfaces=/etc/network/interfaces.d/$LXC_BRIDGE >> "$LOG_BUILD_LXC" 2>&1
 
 echo -e "\e[1m> Configuration réseau du conteneur\e[0m" | tee -a "$LOG_BUILD_LXC"
@@ -127,6 +128,8 @@ echo -e "\e[1m> Configuration réseau de la machine virtualisée\e[0m" | tee -a 
 sudo sed -i "s@iface eth0 inet dhcp@iface eth0 inet static\n\taddress $PLAGE_IP.2/24\n\tgateway $PLAGE_IP.1@" /var/lib/lxc/$LXC_NAME/rootfs/etc/network/interfaces >> "$LOG_BUILD_LXC" 2>&1
 
 echo -e "\e[1m> Configure le parefeu\e[0m" | tee -a "$LOG_BUILD_LXC"
+# WSL hack: Fix uncompatibility between the following instructions and nf_tables... by forcing the use of legacy iptables
+sudo update-alternatives --set iptables /usr/sbin/iptables-legacy >> "$LOG_BUILD_LXC" 2>&1
 sudo iptables -A FORWARD -i $LXC_BRIDGE -o $main_iface -j ACCEPT >> "$LOG_BUILD_LXC" 2>&1
 sudo iptables -A FORWARD -i $main_iface -o $LXC_BRIDGE -j ACCEPT >> "$LOG_BUILD_LXC" 2>&1
 sudo iptables -t nat -A POSTROUTING -s $PLAGE_IP.0/24 -j MASQUERADE >> "$LOG_BUILD_LXC" 2>&1
@@ -245,14 +248,15 @@ ssh $ARG_SSH $LXC_NAME "git clone https://github.com/YunoHost/install_script $br
 echo -e "\e[1m> Installation de Yunohost...\e[0m" | tee -a "$LOG_BUILD_LXC"
 ssh $ARG_SSH $LXC_NAME "cd /tmp/install_script; sudo ./install_yunohost -a" | tee -a "$LOG_BUILD_LXC" 2>&1
 echo -e "\e[1m> Disable apt-daily to prevent it from messing with apt/dpkg lock\e[0m" | tee -a "$LOG_BUILD_LXC"
-ssh $ARG_SSH $LXC_NAME "systemctl -q stop apt-daily.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q stop apt-daily-upgrade.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q stop apt-daily.service" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q stop apt-daily-upgrade.service" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q disable apt-daily.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q disable apt-daily-upgrade.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q disable apt-daily.service" | tee -a "$LOG_BUILD_LXC" 2>&1
-ssh $ARG_SSH $LXC_NAME "systemctl -q disable apt-daily-upgrade.service" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q stop apt-daily.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q stop apt-daily-upgrade.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q stop apt-daily.service" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q stop apt-daily-upgrade.service" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily-upgrade.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily.service" | tee -a "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily-upgrade.service" | tee -a "$LOG_BUILD_LXC" 2>&1
+
 echo -e "\e[1m> Post install Yunohost\e[0m" | tee -a "$LOG_BUILD_LXC"
 ssh $ARG_SSH $LXC_NAME "sudo yunohost tools postinstall --domain $DOMAIN --password $YUNO_PWD --force-password" | tee -a "$LOG_BUILD_LXC" 2>&1
 
