@@ -130,6 +130,7 @@ sudo sed -i "s@iface eth0 inet dhcp@iface eth0 inet static\n\taddress $PLAGE_IP.
 echo -e "\e[1m> Configure le parefeu\e[0m" | tee -a "$LOG_BUILD_LXC"
 # WSL hack: Fix uncompatibility between the following instructions and nf_tables... by forcing the use of legacy iptables
 sudo update-alternatives --set iptables /usr/sbin/iptables-legacy >> "$LOG_BUILD_LXC" 2>&1
+sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy 2>&1
 sudo iptables -A FORWARD -i $LXC_BRIDGE -o $main_iface -j ACCEPT >> "$LOG_BUILD_LXC" 2>&1
 sudo iptables -A FORWARD -i $main_iface -o $LXC_BRIDGE -j ACCEPT >> "$LOG_BUILD_LXC" 2>&1
 sudo iptables -t nat -A POSTROUTING -s $PLAGE_IP.0/24 -j MASQUERADE >> "$LOG_BUILD_LXC" 2>&1
@@ -256,6 +257,10 @@ ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily.timer" | tee -a "$LO
 ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily-upgrade.timer" | tee -a "$LOG_BUILD_LXC" 2>&1
 ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily.service" | tee -a "$LOG_BUILD_LXC" 2>&1
 ssh $ARG_SSH $LXC_NAME "sudo systemctl -q disable apt-daily-upgrade.service" | tee -a "$LOG_BUILD_LXC" 2>&1
+
+# WSL hack: Fix uncompatibility between the following instructions and nf_tables... by forcing the use of legacy iptables
+ssh $ARG_SSH $LXC_NAME "sudo update-alternatives --set iptables /usr/sbin/iptables-legacy" >> "$LOG_BUILD_LXC" 2>&1
+ssh $ARG_SSH $LXC_NAME "sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy" >> "$LOG_BUILD_LXC" 2>&1
 
 echo -e "\e[1m> Post install Yunohost\e[0m" | tee -a "$LOG_BUILD_LXC"
 ssh $ARG_SSH $LXC_NAME "sudo yunohost tools postinstall --domain $DOMAIN --password $YUNO_PWD --force-password" | tee -a "$LOG_BUILD_LXC" 2>&1
